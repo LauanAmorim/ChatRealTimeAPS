@@ -15,6 +15,7 @@ const elements = {
   welcomePanel: document.getElementById("welcomePanel"),
   chatRoom: document.getElementById("chatRoom"),
   usernameInput: document.getElementById("usernameInput"),
+  passwordInput: document.getElementById("passwordInput"),
   enterButton: document.getElementById("enterButton"),
   currentUsername: document.getElementById("currentUsername"),
   connectionStatus: document.getElementById("connectionStatus"),
@@ -177,20 +178,38 @@ function connectWebSocket() {
 
 function enterChat() {
   const username = elements.usernameInput.value.trim();
+  const password = elements.passwordInput ? elements.passwordInput.value : '';
 
   if (!username) {
     elements.usernameInput.focus();
     return;
   }
 
-  state.username = username;
-  elements.currentUsername.textContent = username;
-  elements.welcomePanel.hidden = true;
-  elements.chatRoom.hidden = false;
+  // call backend to validate credentials
+  fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  }).then(async (res) => {
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert('Falha no login: ' + (err && err.error ? err.error : res.statusText));
+      return;
+    }
 
-  // salva username e conecta websocket
-  saveUsernameToStorage(username);
-  connectWebSocket();
+    const data = await res.json();
+    // success
+    state.username = data.username;
+    elements.currentUsername.textContent = data.username;
+    elements.welcomePanel.hidden = true;
+    elements.chatRoom.hidden = false;
+
+    // salva username e conecta websocket
+    saveUsernameToStorage(data.username);
+    connectWebSocket();
+  }).catch((e) => {
+    console.error('Erro ao chamar /api/login', e);
+  });
 }
 
 function sendMessage() {
@@ -286,8 +305,20 @@ elements.audioFileInput.addEventListener('change', async (e) => {
 elements.enterButton.addEventListener("click", enterChat);
 elements.sendButton.addEventListener("click", sendMessage);
 
+// keep keyboard shortcuts
+if (elements.passwordInput) {
+  elements.passwordInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') enterChat();
+  });
+}
+
 elements.usernameInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
+    // if password input exists, focus it first
+    if (elements.passwordInput && !elements.passwordInput.value) {
+      elements.passwordInput.focus();
+      return;
+    }
     enterChat();
   }
 });

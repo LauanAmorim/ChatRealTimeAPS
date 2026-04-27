@@ -63,14 +63,16 @@ input {
 
 .chat-header,
 .chat-room,
+
 .welcome-panel {
+  justify-content: space-evenly;
   padding: 28px;
 }
 
 .chat-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: center;
   gap: 20px;
   border-bottom: 1px solid rgba(167, 243, 208, 0.1);
   background: linear-gradient(135deg, rgba(22, 101, 52, 0.28), rgba(15, 23, 42, 0.08));
@@ -96,7 +98,12 @@ input {
   text-transform: uppercase;
 }
 
-.welcome-copy p,
+.welcome-copy h2 {
+  border: 1px solid var(--soft-border);
+  border-radius: 22px;
+  padding: 22px;
+  background: var(--soft-surface);
+}
 .current-user,
 .message-count,
 .empty-state p {
@@ -106,7 +113,7 @@ input {
 }
 
 .status-pill {
-  display: inline-flex;
+  display: none;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
@@ -138,7 +145,7 @@ input {
 }
 
 .welcome-panel {
-  justify-content: center;
+  justify-content: space-evenly;
 }
 
 .username-box,
@@ -326,6 +333,7 @@ button:disabled {
   .chat-header,
   .chat-room,
   .welcome-panel {
+    justify-content: space-evenly;
     padding: 20px;
   }
 
@@ -335,6 +343,11 @@ button:disabled {
   .chat-composer {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .composer-actions{
+    display: flex;
+    gap: 14px;
   }
 
   .status-pill,
