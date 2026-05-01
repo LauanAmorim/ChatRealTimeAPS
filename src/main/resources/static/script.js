@@ -1,4 +1,7 @@
-// Adiciona persistência com localStorage (username + messages)
+// Persistência com localStorage (username + mensagens de texto)
+// Áudios NÃO são persistidos — data URLs consomem rapidamente a cota de ~5 MB
+
+const MAX_STORED_MESSAGES = 200;
 
 const STORAGE_KEYS = {
   USERNAME: 'chat_username',
@@ -26,7 +29,8 @@ const elements = {
   sendButton: document.getElementById("sendButton"),
   recordButton: document.getElementById("recordButton"),
   audioFileInput: document.getElementById("audioFileInput"),
-  messageCount: document.getElementById("messageCount")
+  messageCount: document.getElementById("messageCount"),
+  logoutButton: document.getElementById("logoutButton")
 };
 
 const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -38,49 +42,44 @@ function setConnectionState(label, isOnline) {
   elements.connectionStatus.classList.toggle("online", isOnline);
 }
 
-function renderMessages() {
-  const existingMessages = elements.messagesContainer.querySelectorAll(".message-card");
-  existingMessages.forEach((node) => node.remove());
+function buildMessageNode(message) {
+  const article = document.createElement("article");
+  article.className = "message-card";
 
+  if (message.username === state.username) {
+    article.classList.add("own-message");
+  }
+
+  const usernameEl = document.createElement("span");
+  usernameEl.className = "message-username";
+  usernameEl.textContent = message.username;
+  article.append(usernameEl);
+
+  if (message.type === "audio") {
+    const audioWrapper = document.createElement('div');
+    audioWrapper.className = 'message-audio';
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.src = message.message;
+    audioWrapper.appendChild(audio);
+    article.appendChild(audioWrapper);
+  } else {
+    const text = document.createElement("p");
+    text.className = "message-text";
+    text.textContent = message.message;
+    article.appendChild(text);
+  }
+
+  return article;
+}
+
+// Usado apenas na carga inicial (histórico completo do localStorage)
+function renderMessages() {
+  elements.messagesContainer.querySelectorAll(".message-card").forEach((n) => n.remove());
   elements.messageCount.textContent = String(state.messages.length);
   elements.emptyState.hidden = state.messages.length > 0;
-
-  state.messages.forEach((message) => {
-    const article = document.createElement("article");
-    article.className = "message-card";
-
-    if (message.username === state.username) {
-      article.classList.add("own-message");
-    }
-
-    const username = document.createElement("span");
-    username.className = "message-username";
-    username.textContent = message.username;
-
-    article.append(username);
-
-    if (message.type === "audio") {
-      const audioWrapper = document.createElement('div');
-      audioWrapper.className = 'message-audio';
-      const audio = document.createElement('audio');
-      audio.controls = true;
-      audio.src = message.message; // data URL
-      audioWrapper.appendChild(audio);
-      article.appendChild(audioWrapper);
-    } else {
-      const text = document.createElement("p");
-      text.className = "message-text";
-      text.textContent = message.message;
-      article.appendChild(text);
-    }
-
-    elements.messagesContainer.appendChild(article);
-  });
-
-  elements.messagesContainer.scrollTo({
-    top: elements.messagesContainer.scrollHeight,
-    behavior: "smooth"
-  });
+  state.messages.forEach((m) => elements.messagesContainer.appendChild(buildMessageNode(m)));
+  elements.messagesContainer.scrollTo({ top: elements.messagesContainer.scrollHeight, behavior: "smooth" });
 }
 
 function saveUsernameToStorage(username) {
@@ -92,10 +91,26 @@ function saveUsernameToStorage(username) {
 }
 
 function saveMessagesToStorage(messages) {
+  // Áudios (data URLs) não são persistidos para não estourar a cota
+  const persistable = (messages || [])
+    .filter((m) => m.type !== 'audio')
+    .slice(-MAX_STORED_MESSAGES);
+
   try {
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages || []));
+    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(persistable));
   } catch (e) {
-    console.warn('Não foi possível salvar mensagens no localStorage', e);
+    if (e.name === 'QuotaExceededError') {
+      // cota estourada: descarta a metade mais antiga e tenta novamente
+      try {
+        const trimmed = persistable.slice(-Math.floor(MAX_STORED_MESSAGES / 2));
+        localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(trimmed));
+        console.warn('localStorage quase cheio — histórico trimado para', trimmed.length, 'mensagens');
+      } catch (e2) {
+        console.warn('localStorage cheio, histórico não salvo', e2);
+      }
+    } else {
+      console.warn('Não foi possível salvar mensagens no localStorage', e);
+    }
   }
 }
 
@@ -124,9 +139,13 @@ function loadStateFromStorage() {
 
 function appendMessage(message) {
   state.messages.push(message);
-  // salva no localStorage sempre que for adicionada uma nova mensagem
   saveMessagesToStorage(state.messages);
-  renderMessages();
+
+  // Atualiza DOM incrementalmente — sem reconstruir todo o histórico
+  elements.emptyState.hidden = true;
+  elements.messageCount.textContent = String(state.messages.length);
+  elements.messagesContainer.appendChild(buildMessageNode(message));
+  elements.messagesContainer.scrollTo({ top: elements.messagesContainer.scrollHeight, behavior: "smooth" });
 }
 
 function connectWebSocket() {
@@ -206,6 +225,7 @@ function enterChat() {
 
     // salva username e conecta websocket
     saveUsernameToStorage(data.username);
+    elements.logoutButton.hidden = false;
     connectWebSocket();
   }).catch((e) => {
     console.error('Erro ao chamar /api/login', e);
@@ -337,6 +357,32 @@ window.addEventListener("beforeunload", () => {
   }
 });
 
+function logout() {
+  if (state.socket) {
+    state.socket.close();
+    state.socket = null;
+  }
+
+  state.username = '';
+  state.messages = [];
+
+  try {
+    localStorage.removeItem(STORAGE_KEYS.USERNAME);
+    localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+  } catch (e) { /* ignorado */ }
+
+  elements.chatRoom.hidden = true;
+  elements.logoutButton.hidden = true;
+  elements.connectionStatus.hidden = true;
+  elements.connectionStatus.classList.remove('online');
+  elements.usernameInput.value = '';
+  elements.passwordInput.value = '';
+  elements.welcomePanel.hidden = false;
+  elements.usernameInput.focus();
+}
+
+elements.logoutButton.addEventListener('click', logout);
+
 // Inicializacao: carrega estado do localStorage e restaura UI
 window.addEventListener('DOMContentLoaded', () => {
   const stored = loadStateFromStorage();
@@ -347,6 +393,7 @@ window.addEventListener('DOMContentLoaded', () => {
     elements.currentUsername.textContent = stored.username;
     elements.welcomePanel.hidden = true;
     elements.chatRoom.hidden = false;
+    elements.logoutButton.hidden = false;
     // conecta automaticamente se já havia username salvo
     connectWebSocket();
   }

@@ -397,6 +397,27 @@ button:disabled {
   }
 }
 
+/* ── Logout button ──────────────────────────────────────────── */
+
+#logoutButton {
+  min-width: unset;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+#logoutButton:hover {
+  background: rgba(239, 68, 68, 0.24);
+  transform: translateY(-1px);
+  filter: none;
+}
+
 /* ── Register page ─────────────────────────────────────────── */
 
 .register-panel {
