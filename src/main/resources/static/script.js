@@ -56,13 +56,7 @@ function buildMessageNode(message) {
   article.append(usernameEl);
 
   if (message.type === "audio") {
-    const audioWrapper = document.createElement('div');
-    audioWrapper.className = 'message-audio';
-    const audio = document.createElement('audio');
-    audio.controls = true;
-    audio.src = message.message;
-    audioWrapper.appendChild(audio);
-    article.appendChild(audioWrapper);
+    article.appendChild(buildAudioPlayer(message.message));
   } else {
     const text = document.createElement("p");
     text.className = "message-text";
@@ -71,6 +65,68 @@ function buildMessageNode(message) {
   }
 
   return article;
+}
+
+function buildAudioPlayer(src) {
+  const player = document.createElement('div');
+  player.className = 'audio-player';
+
+  const btn = document.createElement('button');
+  btn.className = 'audio-btn';
+  btn.type = 'button';
+  btn.textContent = '▶';
+
+  const progressWrap = document.createElement('div');
+  progressWrap.className = 'audio-progress-wrap';
+
+  const progressFill = document.createElement('div');
+  progressFill.className = 'audio-progress-fill';
+  progressWrap.appendChild(progressFill);
+
+  const timeEl = document.createElement('span');
+  timeEl.className = 'audio-time';
+  timeEl.textContent = '0:00';
+
+  const audio = document.createElement('audio');
+  audio.src = src;
+  audio.preload = 'metadata';
+
+  function formatTime(s) {
+    if (!isFinite(s) || isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = String(Math.floor(s % 60)).padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+
+  btn.addEventListener('click', () => {
+    if (audio.paused) { audio.play(); } else { audio.pause(); }
+  });
+
+  audio.addEventListener('play',  () => { btn.textContent = '⏸'; });
+  audio.addEventListener('pause', () => { btn.textContent = '▶'; });
+  audio.addEventListener('ended', () => {
+    btn.textContent = '▶';
+    progressFill.style.width = '0%';
+    timeEl.textContent = `0:00 / ${formatTime(audio.duration)}`;
+  });
+  audio.addEventListener('loadedmetadata', () => {
+    timeEl.textContent = `0:00 / ${formatTime(audio.duration)}`;
+  });
+  audio.addEventListener('timeupdate', () => {
+    if (audio.duration) {
+      progressFill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+      timeEl.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+    }
+  });
+
+  progressWrap.addEventListener('click', (e) => {
+    if (!audio.duration) return;
+    const rect = progressWrap.getBoundingClientRect();
+    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+  });
+
+  player.append(btn, progressWrap, timeEl, audio);
+  return player;
 }
 
 // Usado apenas na carga inicial (histórico completo do localStorage)
@@ -253,7 +309,7 @@ let mediaRecorder = null;
 let recordedChunks = [];
 
 async function startOrSendAudio() {
-  // If MediaRecorder is available, toggle recording
+  // Tenta MediaRecorder (funciona no iOS 14.3+, Android e desktop)
   if (navigator.mediaDevices && window.MediaRecorder) {
     if (!mediaRecorder) {
       try {

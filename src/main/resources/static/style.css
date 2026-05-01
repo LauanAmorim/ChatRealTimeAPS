@@ -317,6 +317,74 @@ button:disabled {
   transform: none;
 }
 
+/* ── Player de áudio customizado ─────────────────────────── */
+
+.audio-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.audio-btn {
+  min-width: unset;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--green-soft), var(--green-solid));
+  color: #052814;
+}
+
+.own-message .audio-btn {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.audio-progress-wrap {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.audio-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--green-soft);
+  transition: width 0.1s linear;
+  pointer-events: none;
+}
+
+.own-message .audio-progress-fill {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.audio-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.own-message .audio-time {
+  color: rgba(237, 255, 244, 0.75);
+}
+
 /* ── Gravação de áudio ──────────────────────────────────── */
 
 @keyframes rec-pulse {
