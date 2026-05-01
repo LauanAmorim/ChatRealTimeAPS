@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Criar conta – Rádio Verde</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="chat-page">
+    <section class="chat-app">
+      <header class="chat-header">
+        <div class="brand-block">
+          <h1>Rádio Verde</h1>
+        </div>
+      </header>
+
+      <section class="register-panel">
+        <div class="welcome-copy">
+          <h2>Crie sua conta para entrar no chat</h2>
+        </div>
+
+        <div class="register-box">
+          <div id="feedbackMsg" class="feedback-msg" role="alert"></div>
+
+          <div class="field-group">
+            <label for="usernameInput">Nome de usuário</label>
+            <input id="usernameInput" type="text" placeholder="Escolha um nome de usuário" maxlength="40" autocomplete="username">
+          </div>
+
+          <div class="field-group">
+            <label for="passwordInput">Senha</label>
+            <input id="passwordInput" type="password" placeholder="Crie uma senha" maxlength="80" autocomplete="new-password">
+          </div>
+
+          <div class="field-group">
+            <label for="confirmPasswordInput">Confirmar senha</label>
+            <input id="confirmPasswordInput" type="password" placeholder="Repita a senha" maxlength="80" autocomplete="new-password">
+          </div>
+
+          <div class="field-group">
+            <label for="accessCodeInput">Código de acesso</label>
+            <input id="accessCodeInput" type="password" placeholder="Informe o código de acesso" maxlength="40" autocomplete="off">
+          </div>
+
+          <div class="register-actions">
+            <button id="registerButton" type="button">Criar conta</button>
+          </div>
+
+          <p class="login-link">Já tem uma conta? <a href="/index.html">Entrar</a></p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/register.js"></script>
+</body>
+</html>
