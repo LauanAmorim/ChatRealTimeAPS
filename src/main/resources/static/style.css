@@ -317,6 +317,38 @@ button:disabled {
   transform: none;
 }
 
+/* ── Gravação de áudio ──────────────────────────────────── */
+
+@keyframes rec-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0.55); }
+  60%  { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0);   }
+}
+
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+#recordButton.recording-active {
+  background: linear-gradient(135deg, #f87171, #ef4444);
+  color: #fff;
+  animation: rec-pulse 1.4s ease-out infinite;
+  transform: none;
+}
+
+#recordButton.recording-active::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  margin-right: 8px;
+  vertical-align: middle;
+  animation: rec-blink 1s step-start infinite;
+}
+
 [hidden] {
   display: none !important;
 }

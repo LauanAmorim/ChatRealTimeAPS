@@ -254,6 +254,7 @@ async function startOrSendAudio() {
 
         mediaRecorder.start();
         elements.recordButton.textContent = 'Parar e Enviar';
+        elements.recordButton.classList.add('recording-active');
       } catch (err) {
         console.error('Erro ao acessar microfone:', err);
         // fallback to file input
@@ -263,6 +264,7 @@ async function startOrSendAudio() {
       // stop and send
       mediaRecorder.stop();
       elements.recordButton.textContent = 'Gravar/Enviar Áudio';
+      elements.recordButton.classList.remove('recording-active');
     }
   } else {
     // fallback: open file selector
