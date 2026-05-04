@@ -1,4 +1,7 @@
-// Adiciona persistência com localStorage (username + messages)
+// Persistência com localStorage (username + mensagens de texto)
+// Áudios NÃO são persistidos — data URLs consomem rapidamente a cota de ~5 MB
+
+const MAX_STORED_MESSAGES = 200;
 
 const STORAGE_KEYS = {
   USERNAME: 'chat_username',
@@ -26,7 +29,8 @@ const elements = {
   sendButton: document.getElementById("sendButton"),
   recordButton: document.getElementById("recordButton"),
   audioFileInput: document.getElementById("audioFileInput"),
-  messageCount: document.getElementById("messageCount")
+  messageCount: document.getElementById("messageCount"),
+  logoutButton: document.getElementById("logoutButton")
 };
 
 const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -38,49 +42,100 @@ function setConnectionState(label, isOnline) {
   elements.connectionStatus.classList.toggle("online", isOnline);
 }
 
-function renderMessages() {
-  const existingMessages = elements.messagesContainer.querySelectorAll(".message-card");
-  existingMessages.forEach((node) => node.remove());
+function buildMessageNode(message) {
+  const article = document.createElement("article");
+  article.className = "message-card";
 
+  if (message.username === state.username) {
+    article.classList.add("own-message");
+  }
+
+  const usernameEl = document.createElement("span");
+  usernameEl.className = "message-username";
+  usernameEl.textContent = message.username;
+  article.append(usernameEl);
+
+  if (message.type === "audio") {
+    article.appendChild(buildAudioPlayer(message.message));
+  } else {
+    const text = document.createElement("p");
+    text.className = "message-text";
+    text.textContent = message.message;
+    article.appendChild(text);
+  }
+
+  return article;
+}
+
+function buildAudioPlayer(src) {
+  const player = document.createElement('div');
+  player.className = 'audio-player';
+
+  const btn = document.createElement('button');
+  btn.className = 'audio-btn';
+  btn.type = 'button';
+  btn.textContent = '▶';
+
+  const progressWrap = document.createElement('div');
+  progressWrap.className = 'audio-progress-wrap';
+
+  const progressFill = document.createElement('div');
+  progressFill.className = 'audio-progress-fill';
+  progressWrap.appendChild(progressFill);
+
+  const timeEl = document.createElement('span');
+  timeEl.className = 'audio-time';
+  timeEl.textContent = '0:00';
+
+  const audio = document.createElement('audio');
+  audio.src = src;
+  audio.preload = 'metadata';
+
+  function formatTime(s) {
+    if (!isFinite(s) || isNaN(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = String(Math.floor(s % 60)).padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+
+  btn.addEventListener('click', () => {
+    if (audio.paused) { audio.play(); } else { audio.pause(); }
+  });
+
+  audio.addEventListener('play',  () => { btn.textContent = '⏸'; });
+  audio.addEventListener('pause', () => { btn.textContent = '▶'; });
+  audio.addEventListener('ended', () => {
+    btn.textContent = '▶';
+    progressFill.style.width = '0%';
+    timeEl.textContent = `0:00 / ${formatTime(audio.duration)}`;
+  });
+  audio.addEventListener('loadedmetadata', () => {
+    timeEl.textContent = `0:00 / ${formatTime(audio.duration)}`;
+  });
+  audio.addEventListener('timeupdate', () => {
+    if (audio.duration) {
+      progressFill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+      timeEl.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+    }
+  });
+
+  progressWrap.addEventListener('click', (e) => {
+    if (!audio.duration) return;
+    const rect = progressWrap.getBoundingClientRect();
+    audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+  });
+
+  player.append(btn, progressWrap, timeEl, audio);
+  return player;
+}
+
+// Usado apenas na carga inicial (histórico completo do localStorage)
+function renderMessages() {
+  elements.messagesContainer.querySelectorAll(".message-card").forEach((n) => n.remove());
   elements.messageCount.textContent = String(state.messages.length);
   elements.emptyState.hidden = state.messages.length > 0;
-
-  state.messages.forEach((message) => {
-    const article = document.createElement("article");
-    article.className = "message-card";
-
-    if (message.username === state.username) {
-      article.classList.add("own-message");
-    }
-
-    const username = document.createElement("span");
-    username.className = "message-username";
-    username.textContent = message.username;
-
-    article.append(username);
-
-    if (message.type === "audio") {
-      const audioWrapper = document.createElement('div');
-      audioWrapper.className = 'message-audio';
-      const audio = document.createElement('audio');
-      audio.controls = true;
-      audio.src = message.message; // data URL
-      audioWrapper.appendChild(audio);
-      article.appendChild(audioWrapper);
-    } else {
-      const text = document.createElement("p");
-      text.className = "message-text";
-      text.textContent = message.message;
-      article.appendChild(text);
-    }
-
-    elements.messagesContainer.appendChild(article);
-  });
-
-  elements.messagesContainer.scrollTo({
-    top: elements.messagesContainer.scrollHeight,
-    behavior: "smooth"
-  });
+  state.messages.forEach((m) => elements.messagesContainer.appendChild(buildMessageNode(m)));
+  elements.messagesContainer.scrollTo({ top: elements.messagesContainer.scrollHeight, behavior: "smooth" });
 }
 
 function saveUsernameToStorage(username) {
@@ -92,10 +147,26 @@ function saveUsernameToStorage(username) {
 }
 
 function saveMessagesToStorage(messages) {
+  // Áudios (data URLs) não são persistidos para não estourar a cota
+  const persistable = (messages || [])
+    .filter((m) => m.type !== 'audio')
+    .slice(-MAX_STORED_MESSAGES);
+
   try {
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages || []));
+    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(persistable));
   } catch (e) {
-    console.warn('Não foi possível salvar mensagens no localStorage', e);
+    if (e.name === 'QuotaExceededError') {
+      // cota estourada: descarta a metade mais antiga e tenta novamente
+      try {
+        const trimmed = persistable.slice(-Math.floor(MAX_STORED_MESSAGES / 2));
+        localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(trimmed));
+        console.warn('localStorage quase cheio — histórico trimado para', trimmed.length, 'mensagens');
+      } catch (e2) {
+        console.warn('localStorage cheio, histórico não salvo', e2);
+      }
+    } else {
+      console.warn('Não foi possível salvar mensagens no localStorage', e);
+    }
   }
 }
 
@@ -124,9 +195,13 @@ function loadStateFromStorage() {
 
 function appendMessage(message) {
   state.messages.push(message);
-  // salva no localStorage sempre que for adicionada uma nova mensagem
   saveMessagesToStorage(state.messages);
-  renderMessages();
+
+  // Atualiza DOM incrementalmente — sem reconstruir todo o histórico
+  elements.emptyState.hidden = true;
+  elements.messageCount.textContent = String(state.messages.length);
+  elements.messagesContainer.appendChild(buildMessageNode(message));
+  elements.messagesContainer.scrollTo({ top: elements.messagesContainer.scrollHeight, behavior: "smooth" });
 }
 
 function connectWebSocket() {
@@ -206,6 +281,7 @@ function enterChat() {
 
     // salva username e conecta websocket
     saveUsernameToStorage(data.username);
+    elements.logoutButton.hidden = false;
     connectWebSocket();
   }).catch((e) => {
     console.error('Erro ao chamar /api/login', e);
@@ -233,7 +309,7 @@ let mediaRecorder = null;
 let recordedChunks = [];
 
 async function startOrSendAudio() {
-  // If MediaRecorder is available, toggle recording
+  // Tenta MediaRecorder (funciona no iOS 14.3+, Android e desktop)
   if (navigator.mediaDevices && window.MediaRecorder) {
     if (!mediaRecorder) {
       try {
@@ -254,6 +330,7 @@ async function startOrSendAudio() {
 
         mediaRecorder.start();
         elements.recordButton.textContent = 'Parar e Enviar';
+        elements.recordButton.classList.add('recording-active');
       } catch (err) {
         console.error('Erro ao acessar microfone:', err);
         // fallback to file input
@@ -263,6 +340,7 @@ async function startOrSendAudio() {
       // stop and send
       mediaRecorder.stop();
       elements.recordButton.textContent = 'Gravar/Enviar Áudio';
+      elements.recordButton.classList.remove('recording-active');
     }
   } else {
     // fallback: open file selector
@@ -335,6 +413,32 @@ window.addEventListener("beforeunload", () => {
   }
 });
 
+function logout() {
+  if (state.socket) {
+    state.socket.close();
+    state.socket = null;
+  }
+
+  state.username = '';
+  state.messages = [];
+
+  try {
+    localStorage.removeItem(STORAGE_KEYS.USERNAME);
+    localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+  } catch (e) { /* ignorado */ }
+
+  elements.chatRoom.hidden = true;
+  elements.logoutButton.hidden = true;
+  elements.connectionStatus.hidden = true;
+  elements.connectionStatus.classList.remove('online');
+  elements.usernameInput.value = '';
+  elements.passwordInput.value = '';
+  elements.welcomePanel.hidden = false;
+  elements.usernameInput.focus();
+}
+
+elements.logoutButton.addEventListener('click', logout);
+
 // Inicializacao: carrega estado do localStorage e restaura UI
 window.addEventListener('DOMContentLoaded', () => {
   const stored = loadStateFromStorage();
@@ -345,6 +449,7 @@ window.addEventListener('DOMContentLoaded', () => {
     elements.currentUsername.textContent = stored.username;
     elements.welcomePanel.hidden = true;
     elements.chatRoom.hidden = false;
+    elements.logoutButton.hidden = false;
     // conecta automaticamente se já havia username salvo
     connectWebSocket();
   }
